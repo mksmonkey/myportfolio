@@ -1,26 +1,89 @@
 @import "tailwindcss";
 
+/* ─── Tailwind v4 theme ─────────────────────────────────────────────────────
+   next/font injects --font-space-grotesk / --font-jetbrains-mono on <html>.
+   @theme (no inline) also emits these vars on :root so utility classes
+   resolve the chain: font-display → var(--font-display) → actual font.
+────────────────────────────────────────────────────────────────────────────── */
+@theme {
+  --font-display: var(--font-space-grotesk);
+  --font-mono:    var(--font-jetbrains-mono);
+}
+
+/* ─── Design tokens ─────────────────────────────────────────────────────────
+   --accent / --accent-2 start at calm values; useAccentSync.ts overwrites
+   them on every alertLevel change (calm cyan/lime → alert amber/red).
+────────────────────────────────────────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg:      #0A0A0B;
+  --surface: #101014;
+  --text:    #E6E6E9;
+
+  --calm-a:  #00E5FF;
+  --calm-b:  #9EFF00;
+  --alert-a: #FF6B00;
+  --alert-b: #FF2D55;
+
+  /* Live accent — JS interpolates these; sensible calm defaults shown here */
+  --accent:   #00E5FF;
+  --accent-2: #9EFF00;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ─── Base styles ─────────────────────────────────────────────────────────── */
+html {
+  color-scheme: dark;            /* prevents white flash on load */
+  background: var(--bg);
+  color: var(--text);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-display, system-ui, sans-serif);
+  overflow-x: hidden;
+}
+
+/* ─── Film-grain + scanline overlay ─────────────────────────────────────────
+   Fixed pseudo-element:
+     z-index 5  → above WebGL canvas (z 0), below UI (z 10+)
+     pointer-events: none → never blocks clicks
+   Two background layers:
+     1. SVG feTurbulence fractalNoise  → subtle grain
+     2. repeating-linear-gradient     → horizontal scanlines
+   mix-blend-mode: overlay + very low opacity keeps it invisible unless
+   you're looking for it.
+   Note: url(%23n) is url(#n) with '#' percent-encoded for the data URI.
+────────────────────────────────────────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  opacity: 0.07;
+  background-image:
+    url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>"),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(255,255,255,0.055) 2px,
+      rgba(255,255,255,0.055) 4px
+    );
+  background-size: 200px 200px, 100% 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* drop the animated grain texture; keep scanlines only */
+  body::before {
+    background-image: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(255,255,255,0.04) 2px,
+      rgba(255,255,255,0.04) 4px
+    );
+    background-size: 100% 4px;
+  }
 }

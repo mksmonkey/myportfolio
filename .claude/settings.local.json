@@ -1,7 +1,37 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx create-next-app@latest *)"
+      "Bash(npx create-next-app@latest *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(node *)",
+      "Bash(npx tsc *)",
+      "Read(//c/Users/mks11/AppData/Local/Temp/**)",
+      "Bash(curl -s \"http://localhost:3000\" -o /dev/null -w \"%{http_code}\")",
+      "Bash(curl -s \"http://localhost:3000\")",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(taskkill /PID 2628 /F)",
+      "Bash(npx next *)",
+      "PowerShell(Stop-Process *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "PowerShell(netstat *)",
+      "PowerShell(npm run *)",
+      "PowerShell(Receive-Job *)",
+      "PowerShell(cd D:\\\\myportfolio; Start-Process -FilePath \"npm\" -ArgumentList \"run\",\"dev\",\"--\",\"--port\",\"3002\" -NoNewWindow -PassThru -RedirectStandardOutput \"$env:TEMP\\\\nextlog.txt\" -RedirectStandardError \"$env:TEMP\\\\nexterr.txt\")",
+      "Read(//tmp/**)",
+      "Bash(curl -s http://localhost:3002/)",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3002/)",
+      "PowerShell(New-Item *)",
+      "Bash(Remove-Item \"D:\\\\myportfolio\\\\src\\\\components\\\\three\\\\SystemCore.tsx\" -Force)",
+      "Bash(Remove-Item \"D:\\\\myportfolio\\\\src\\\\components\\\\three\\\\shaders\\\\systemCore.glsl.ts\" -Force)",
+      "Bash(Write-Host \"Deleted\")",
+      "Bash(New-Item -ItemType Directory -Force \"D:\\\\myportfolio\\\\src\\\\components\\\\sections\")",
+      "Bash(Out-Null)",
+      "Bash(Write-Output \"ok\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(git -C /d/myportfolio status --short)",
+      "Bash(git -C /d/myportfolio log --oneline -5)"
     ]
   }
 }
