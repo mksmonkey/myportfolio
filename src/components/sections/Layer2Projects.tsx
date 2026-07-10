@@ -1,6 +1,7 @@
 'use client'
 import { useRef, useEffect, useMemo, type MutableRefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
+import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { useSystemStore } from '@/lib/store'
 import { mouseSmooth } from '@/lib/useMouse'
@@ -15,8 +16,9 @@ const SLAB_W         = 2.2
 const SLAB_H         = 1.4
 const CARD_W         = 1024
 const CARD_H         = 640
-// Tightened band per choreography spec: center at 0.52, visible 0.42–0.68
-const LAYER_2_BAND: [number, number] = [0.42, 0.68]
+// Non-overlapping band with transit gaps on both sides — layers never co-exist.
+// Center at 0.52; scroll-focus decrypt plateau matches (Scene.tsx FOCUS_BANDS).
+const LAYER_2_BAND: [number, number] = [0.44, 0.60]
 
 // ── Project data (CLAUDE.md §10) ─────────────────────────────────────────────
 interface Project {
@@ -294,6 +296,7 @@ export function Layer2Projects() {
   const { camera } = useThree()
 
   const groupRef     = useRef<THREE.Group>(null)
+  const headerRef    = useRef<HTMLDivElement | null>(null)
   const asciiMeshes  = useRef<(THREE.Mesh | null)[]>(Array(5).fill(null))
   const revealMeshes = useRef<(THREE.Mesh | null)[]>(Array(5).fill(null))
   const hoverLerps   = useRef<number[]>(Array(5).fill(0))
@@ -368,10 +371,11 @@ export function Layer2Projects() {
     if (!store.bootComplete) return
 
     const inBand = sp >= LAYER_2_BAND[0] && sp <= LAYER_2_BAND[1]
-    visLerp.current = THREE.MathUtils.damp(visLerp.current, inBand ? 1 : 0, 3, delta)
+    visLerp.current = THREE.MathUtils.damp(visLerp.current, inBand ? 1 : 0, 4.5, delta)
     const vis = visLerp.current
 
     if (groupRef.current) groupRef.current.visible = vis > 0.01
+    if (headerRef.current) headerRef.current.style.opacity = (vis * 0.75).toFixed(3)
     if (vis <= 0.01) return
 
     // Switch texture set when role changes (imperative, no re-render)
@@ -459,7 +463,15 @@ export function Layer2Projects() {
 
         </group>
       ))}
-      {/* PROMPT 5: Layer 2 DOM section header "LAYER 2 // ~/systems" */}
+      <Html position={[0, 2.15, 0.04]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
+        <div ref={headerRef} style={{
+          opacity: 0, color: '#E6E6E9',
+          fontFamily: 'var(--font-mono), "JetBrains Mono", monospace',
+          fontSize: '11px', letterSpacing: '0.28em', whiteSpace: 'nowrap',
+        }}>
+          LAYER 2 // ~/systems — encrypted files · hover to breach
+        </div>
+      </Html>
     </group>
   )
 }

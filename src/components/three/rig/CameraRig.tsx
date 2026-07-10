@@ -52,8 +52,6 @@ export function CameraRig() {
   const lookAtTarget = useRef(new THREE.Vector3(0, 0, 0))
 
   useEffect(() => {
- console.log('[CameraRig] effect fired, quality:', quality, '__lenisReady:', (window as any).__lenisReady)
-    
     gsap.registerPlugin(ScrollTrigger)
 
     if (quality === 'low') return
@@ -61,18 +59,13 @@ export function CameraRig() {
     let st: ReturnType<typeof ScrollTrigger.create> | null = null
 
     const setupST = () => {
-      console.log('[CameraRig] setupST called')
       st = ScrollTrigger.create({
-        
         trigger:  document.documentElement,
         scroller: document.documentElement,
         start:    'top top',
         end:      'bottom bottom',
         scrub:    1.5,
-        onUpdate: (self) => { 
-          scrollProg.current = self.progress
-          console.log('ST progress:', self.progress.toFixed(3))
-        },
+        onUpdate: (self) => { scrollProg.current = self.progress },
       })
     }
 
@@ -105,7 +98,7 @@ export function CameraRig() {
     scrollProgress.value = p
 
     // ── Layer indicator — fires only on band change (no per-frame React render) ──
-    const newLayer = raw < 0.17 ? 0 : raw < 0.42 ? 1 : raw < 0.68 ? 2 : 5
+    const newLayer = raw < 0.14 ? 0 : raw < 0.42 ? 1 : raw < 0.625 ? 2 : raw < 0.785 ? 3 : raw < 0.93 ? 4 : 5
     if (newLayer !== currentLayerRef.current) {
       currentLayerRef.current = newLayer
       useSystemStore.getState().setCurrentLayer(newLayer)

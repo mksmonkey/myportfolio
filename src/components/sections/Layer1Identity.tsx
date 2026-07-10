@@ -8,6 +8,7 @@ import { useSystemStore } from '@/lib/store'
 import { useQuality } from '@/lib/useQuality'
 import { lenisRef } from '@/lib/gsap'
 import { scrollProgress, layerAnchorAt, cameraStateAt, LAYER_VIEW_DIST } from '@/components/three/rig/CameraRig'
+import { trueColorState } from '@/components/three/postfx/DitherEffect'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TUNABLE CONSTANTS
@@ -16,24 +17,24 @@ import { scrollProgress, layerAnchorAt, cameraStateAt, LAYER_VIEW_DIST } from '@
 const L1_CENTER_P = 0.27
 const L1_ANCHOR   = layerAnchorAt(L1_CENTER_P)
 
-const PRE_BEAT_DUR        = 0.45  
-const DIVE_TOTAL_DUR      = 3.0   
-const STATION_PAUSE       = 0.30  
+const PRE_BEAT_DUR        = 0.45
+const DIVE_TOTAL_DUR      = 3.0
+const STATION_PAUSE       = 0.30
 const DIVE_EASE           = 'power1.inOut'
-const COMPUTE_LINGER      = 2.0   
-const COMPUTE_PUSH_IN     = 2.0   
+const COMPUTE_LINGER      = 2.0
+const COMPUTE_PUSH_IN     = 2.0
 const RETURN_DUR          = 3.0
 const RETURN_EASE         = 'power2.inout'
 const REVEAL_DUR          = 1.2
 
 const STATION_DIVE_VALUES = [0, 6, 12, 18, 24]
-const STATION_FORWARD_OFFSET = [LAYER_VIEW_DIST, 10.5, 16.5, 22.5, 28.5] 
-const FINAL_DIVE          = STATION_DIVE_VALUES[4] 
+const STATION_FORWARD_OFFSET = [LAYER_VIEW_DIST, 10.5, 16.5, 22.5, 28.5]
+const FINAL_DIVE          = STATION_DIVE_VALUES[4]
 
-const LABEL_AHEAD_RANGE   = 8.0   
-const LABEL_BEHIND_RANGE  = 2.0   
-const LABEL_IN_DAMP       = 9.0   
-const LABEL_OUT_DAMP      = 2.2   
+const LABEL_AHEAD_RANGE   = 8.0
+const LABEL_BEHIND_RANGE  = 2.0
+const LABEL_IN_DAMP       = 9.0
+const LABEL_OUT_DAMP      = 2.2
 
 const ALERT_PRE           = 0.10
 const ALERT_DIVE_END      = 0.40
@@ -41,15 +42,7 @@ const ALERT_COMPUTE_SPIKE = 0.40
 const ALERT_RETURN_END    = 0.40
 const ALERT_SETTLE        = 0.18
 
-const LAYER_1_BAND: [number, number] = [0.15, 0.45]
-
-const NODE_OFFSETS: [number, number, number][] = [
-  [ 0.0, 0.0, 0.0 ],
-  [-2.2, 0.0, 0.0 ],
-  [ 2.2, 0.0, 0.0 ],
-]
-const NODE_LABELS = ['ENTITY::MAYANK', 'ROLE::BUILDER', 'ROLE::BREAKER']
-const NODE_COLORS = ['#FFFFFF', '#00E5FF', '#FF2D55']
+const LAYER_1_BAND: [number, number] = [0.15, 0.40]
 
 const STATION_LABELS = [
   'ENTITY :: MAYANK',
@@ -63,6 +56,22 @@ const LATTICE_LAYERS = 3
 const LATTICE_NODES_PER_LAYER = 4
 const LATTICE_LAYER_SPACING = 0.85
 const LATTICE_NODE_SPACING  = 0.45
+
+// ── THE CHOICE — Morpheus tableau (return beat of the kill chain) ─────────────
+// Photo center (posterized mono, Morpheus pose), red pill = ~/breaker (viewer
+// left, like the reference), blue pill = ~/builder. Picking one sets
+// store.selectedRole, which Layer 2 reads to swap its card sets.
+type PillRole = 'breaker' | 'builder'
+
+const TABLEAU_OFFSET: [number, number, number] = [0, 0.95, -1.0] // groupRef-local → view center at return, nudged DOWN so the tableau owns the lower stage
+const PHOTO_SIZE = 3.0
+const PILL_X     = 2.05
+const PILL_Y     = -1.05
+
+const PILLS: { role: PillRole; x: number; color: string; name: string; sub: string }[] = [
+  { role: 'breaker', x: -PILL_X, color: '#FF2D55', name: 'RED_PILL // ~/breaker',  sub: 'stay in wonderland — offensive security' },
+  { role: 'builder', x:  PILL_X, color: '#00E5FF', name: 'BLUE_PILL // ~/builder', sub: 'wake up in prod — full-stack builder' },
+]
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PRE-COMPUTED MATH (Optimized)
@@ -121,25 +130,37 @@ export function Layer1Identity() {
   const groupRef = useRef<THREE.Group>(null)
   const stationsGroupRef = useRef<THREE.Group>(null)
 
-  const wireRefs  = useRef<(THREE.Mesh | null)[]>([null, null, null])
-  const solidRefs = useRef<(THREE.Mesh | null)[]>([null, null, null])
-  const lineLRef = useRef<THREE.Group | null>(null)
-  const lineRRef = useRef<THREE.Group | null>(null)
+  const entityWireRef  = useRef<THREE.Mesh>(null)
+  const entitySolidRef = useRef<THREE.Mesh>(null)
 
   const stationLabelRefs = useRef<(HTMLDivElement | null)[]>([null, null, null, null, null])
   const labelDamp = useRef<number[]>([0, 0, 0, 0, 0])
-  const nodeLabelRefs = useRef<(HTMLDivElement | null)[]>([null, null, null])
 
   const latticeGroupRef = useRef<THREE.Group>(null)
   const latticeNodeRefs = useRef<(THREE.Mesh | null)[]>([])
   const latticeEdgeRefs = useRef<(THREE.Group | null)[]>([])
   const equationRefs = useRef<(HTMLDivElement | null)[]>([null, null, null, null])
 
+  // ── Tableau refs ──────────────────────────────────────────────────────────
+  const photoMeshRef  = useRef<THREE.Mesh>(null)
+  const titleRef      = useRef<HTMLDivElement | null>(null)
+  const scaleRefs     = useRef<Record<PillRole, THREE.Group | null>>({ breaker: null, builder: null })
+  const spinRefs      = useRef<Record<PillRole, THREE.Group | null>>({ breaker: null, builder: null })
+  const pillMeshRefs  = useRef<Record<PillRole, THREE.Mesh | null>>({ breaker: null, builder: null })
+  const ringRefs      = useRef<Record<PillRole, (THREE.Mesh | null)[]>>({ breaker: [null, null], builder: [null, null] })
+  const ringBoost     = useRef<Record<PillRole, number>>({ breaker: 1, builder: 1 })
+  const idleTweenRef  = useRef<gsap.core.Tween | null>(null)
+  const pillLabelRefs = useRef<Record<PillRole, HTMLDivElement | null>>({ breaker: null, builder: null })
+  const labelBase     = useRef({ title: 0, breaker: 0, builder: 0 })
+  const pillHover     = useRef<Record<PillRole, number>>({ breaker: 0, builder: 0 })
+  const pillHoverTarget = useRef<Record<PillRole, boolean>>({ breaker: false, builder: false })
+  const choiceRef     = useRef<PillRole | null>(null)
+
   const isHackingRef   = useRef(false)
-  const cinematicLocalRef = useRef(false)  
+  const cinematicLocalRef = useRef(false)
   const completedRef   = useRef(false)
 
-  const proxyRef = useRef({ dive: 0, alertPulse: 0, latticePulse: 0 })
+  const proxyRef = useRef({ dive: 0, alertPulse: 0, latticePulse: 0, tableau: 0 })
   const ctxRef   = useRef<gsap.Context | null>(null)
 
   // 🚨 PATCH 1: Listener cleanup ref (Memory Leak Fix)
@@ -149,25 +170,104 @@ export function Layer1Identity() {
   const tmpLookAt = useRef(new THREE.Vector3())
 
   useEffect(() => {
-    if (wireRefs.current[0])  wireRefs.current[0]!.userData.baseOpacity  = 0.45
-    if (wireRefs.current[1])  wireRefs.current[1]!.userData.baseOpacity  = 0.0
-    if (wireRefs.current[2])  wireRefs.current[2]!.userData.baseOpacity  = 0.0
-    solidRefs.current.forEach((r) => { if (r) r.userData.baseOpacity = 0.0 })
+    if (entityWireRef.current)  entityWireRef.current.userData.baseOpacity  = 0.45
+    if (entitySolidRef.current) entitySolidRef.current.userData.baseOpacity = 0.0
+    if (photoMeshRef.current)   photoMeshRef.current.userData.baseOpacity   = 0.0
+    ;(['breaker', 'builder'] as const).forEach((role) => {
+      const m = pillMeshRefs.current[role]
+      if (m) m.userData.baseOpacity = 0.0
+      ringRefs.current[role].forEach((rm) => { if (rm) rm.userData.baseOpacity = 0.0 })
+    })
 
-    if (lineLRef.current) (lineLRef.current as any).userData.baseOpacity = 0.0
-    if (lineRRef.current) (lineRRef.current as any).userData.baseOpacity = 0.0
-
-    const pulse = gsap.to(wireRefs.current[0]!.scale, {
+    const pulse = gsap.to(entityWireRef.current!.scale, {
       x: 1.18, y: 1.18, z: 1.18,
       duration: 1.2, yoyo: true, repeat: -1, ease: 'sine.inOut',
     })
 
-    return () => { 
+    return () => {
       pulse.kill()
+      idleTweenRef.current?.kill()
       ctxRef.current?.revert()
       // 🚨 Ensure listeners are wiped if component unmounts mid-hack
       if (removeListenersRef.current) removeListenersRef.current()
     }
+  }, [])
+
+  // ── Photo texture: grayscale + contrast + 5-level posterize + edge fade ────
+  // (Morpheus screen-print look; edges dissolve so the plane never silhouettes
+  // against the shaft. The dither pass then encrypts it like everything else.)
+  useEffect(() => {
+    let tex: THREE.CanvasTexture | null = null
+    const img = new Image()
+    img.src = '/mypic.jpg'
+    img.onload = () => {
+      const S = 512
+      const cv = document.createElement('canvas')
+      cv.width = S; cv.height = S
+      const ctx = cv.getContext('2d')!
+      ctx.drawImage(img, 0, 0, S, S)
+
+      const id = ctx.getImageData(0, 0, S, S)
+      const d = id.data
+      for (let i = 0; i < d.length; i += 4) {
+        let l = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) * 1.18 // lift shadows so the darker side of the face survives the dither
+        l = (l - 128) * 1.45 + 124
+        l = Math.max(0, Math.min(255, l))
+        l = (Math.round((l / 255) * 4) / 4) * 255
+        d[i] = d[i + 1] = d[i + 2] = l
+      }
+      ctx.putImageData(id, 0, 0)
+
+      const g = ctx.createRadialGradient(S / 2, S * 0.46, S * 0.34, S / 2, S * 0.46, S * 0.70)
+      g.addColorStop(0, 'rgba(0,0,0,0)')
+      g.addColorStop(1, 'rgba(0,0,0,1)')
+      ctx.globalCompositeOperation = 'destination-out'
+      ctx.fillStyle = g
+      ctx.fillRect(0, 0, S, S)
+      ctx.globalCompositeOperation = 'source-over'
+
+      tex = new THREE.CanvasTexture(cv)
+      tex.colorSpace = THREE.SRGBColorSpace
+      tex.minFilter = THREE.LinearFilter
+      tex.magFilter = THREE.LinearFilter
+      tex.generateMipmaps = false
+
+      const mesh = photoMeshRef.current
+      if (mesh) {
+        const mat = mesh.material as THREE.MeshBasicMaterial
+        mat.map = tex
+        mat.needsUpdate = true
+      }
+    }
+    return () => { tex?.dispose() }
+  }, [])
+
+  // ── Role sync: single source of visual truth for the pills ─────────────────
+  // Fires on EVERY selectedRole change — first pill click, tableau re-click,
+  // or the top-center lens toggle. Keeps tableau state consistent everywhere.
+  useEffect(() => {
+    const unsub = useSystemStore.subscribe((s, prev) => {
+      const role = s.selectedRole
+      if (!role || role === prev.selectedRole) return
+      choiceRef.current = role
+      const other: PillRole = role === 'breaker' ? 'builder' : 'breaker'
+
+      ringBoost.current[role]  = 2.6
+      ringBoost.current[other] = 0.12
+
+      const cm = pillMeshRefs.current[role]
+      const om = pillMeshRefs.current[other]
+      if (cm) gsap.to(cm.userData, { baseOpacity: 0.95, duration: 0.5 })
+      if (om) gsap.to(om.userData, { baseOpacity: 0.10, duration: 0.5 })
+      ringRefs.current[role].forEach((rm) => { if (rm) gsap.to(rm.userData, { baseOpacity: 0.5, duration: 0.5 }) })
+      ringRefs.current[other].forEach((rm) => { if (rm) gsap.to(rm.userData, { baseOpacity: 0.05, duration: 0.5 }) })
+      gsap.to(labelBase.current, { [role]: 1, [other]: 0.12, title: 0, duration: 0.5 })
+
+      s.setL1LogText(role === 'breaker'
+        ? '>> RED_PILL // wonderland engaged — offensive lens active'
+        : '>> BLUE_PILL // waking up in prod — builder lens active')
+    })
+    return () => unsub()
   }, [])
 
   const executeKillChain = () => {
@@ -191,13 +291,14 @@ export function Layer1Identity() {
     if (groupRef.current) groupRef.current.visible = true
     if (stationsGroupRef.current) stationsGroupRef.current.visible = true
 
-    gsap.killTweensOf(wireRefs.current[0]!.scale)
-    wireRefs.current[0]!.scale.set(1, 1, 1)
+    gsap.killTweensOf(entityWireRef.current!.scale)
+    entityWireRef.current!.scale.set(1, 1, 1)
 
     const proxy = proxyRef.current
     proxy.dive = 0
     proxy.alertPulse = 0
     proxy.latticePulse = 0
+    proxy.tableau = 0
 
     // 🚨 PATCH 2: Revert old context before creating a new one (Context Leak Fix)
     if (ctxRef.current) ctxRef.current.revert()
@@ -207,17 +308,22 @@ export function Layer1Identity() {
         onComplete: () => {
           completedRef.current = true
           useSystemStore.getState().setL1Status('done')
-          useSystemStore.getState().setL1LogText('>> DECRYPTION COMPLETE // ROLES ACTIVE')
+          useSystemStore.getState().setL1LogText('>> CHOICE PENDING // red or blue')
           attachScrollResumeListener()
+          // Idle breathing dolly while the visitor decides — killed on choice/resume
+          idleTweenRef.current?.kill()
+          idleTweenRef.current = gsap.to(proxyRef.current, {
+            dive: 0.55, duration: 3.4, ease: 'sine.inOut', yoyo: true, repeat: -1,
+          })
         },
       })
 
       // PHASE 1
-      tl.to(wireRefs.current[0]!.userData, { baseOpacity: 0.85, duration: PRE_BEAT_DUR }, 0)
-      tl.to(solidRefs.current[0]!.userData, { baseOpacity: 0.25, duration: PRE_BEAT_DUR }, 0)
+      tl.to(entityWireRef.current!.userData, { baseOpacity: 0.85, duration: PRE_BEAT_DUR }, 0)
+      tl.to(entitySolidRef.current!.userData, { baseOpacity: 0.25, duration: PRE_BEAT_DUR }, 0)
       tl.to(proxy, { alertPulse: ALERT_PRE, duration: PRE_BEAT_DUR, ease: 'power1.in' }, 0)
 
-      // PHASE 2 
+      // PHASE 2
       const segDur = DIVE_TOTAL_DUR / 4
       for (let i = 1; i <= 4; i++) {
         const label = STATION_LABELS[i]
@@ -228,7 +334,7 @@ export function Layer1Identity() {
 
       tl.to(proxy, { alertPulse: ALERT_DIVE_END, duration: DIVE_TOTAL_DUR + STATION_PAUSE * 3, ease: 'none' }, PRE_BEAT_DUR)
 
-      // PHASE 3 
+      // PHASE 3
       tl.addLabel('compute')
       tl.call(() => useSystemStore.getState().setL1LogText('>> NN_RESOLVE :: forward pass...'))
       tl.to(proxy, { dive: FINAL_DIVE + COMPUTE_PUSH_IN, duration: COMPUTE_LINGER, ease: 'power1.in' }, 'compute')
@@ -270,14 +376,31 @@ export function Layer1Identity() {
       tl.to(proxy, { latticePulse: 0, duration: totalReturnDur * 0.6, ease: 'power2.in' }, 'return')
       tl.to(equationRefs.current, { opacity: 0, duration: returnSegDur * 0.9, ease: 'power1.in' }, 'return')
 
-      // PHASE 5
+      // PHASE 5 — THE CHOICE (entity dissolves, Morpheus tableau materializes)
       tl.addLabel('reveal')
-      tl.to(wireRefs.current[0]!.userData, { baseOpacity: 0.6, duration: REVEAL_DUR * 0.5 }, 'reveal')
-      tl.to(solidRefs.current[0]!.userData, { baseOpacity: 0.15, duration: REVEAL_DUR * 0.5 }, 'reveal')
-      tl.to([lineLRef.current!.userData, lineRRef.current!.userData], { baseOpacity: 0.42, duration: REVEAL_DUR * 0.5 }, 'reveal')
-      tl.to([wireRefs.current[1]!.userData, wireRefs.current[2]!.userData], { baseOpacity: 0.6, duration: REVEAL_DUR * 0.7 }, 'reveal')
-      tl.to([solidRefs.current[1]!.userData, solidRefs.current[2]!.userData], { baseOpacity: 0.28, duration: REVEAL_DUR * 0.7 }, 'reveal')
-      tl.to([nodeLabelRefs.current[1], nodeLabelRefs.current[2]], { opacity: 1, duration: REVEAL_DUR * 0.6, stagger: 0.12 }, `reveal+=${REVEAL_DUR * 0.3}`)
+      tl.call(() => useSystemStore.getState().setL1LogText('>> IDENTITY RESOLVED // MAKE YOUR CHOICE'))
+      tl.to(entityWireRef.current!.userData, { baseOpacity: 0, duration: REVEAL_DUR * 0.4 }, 'reveal')
+      tl.to(entitySolidRef.current!.userData, { baseOpacity: 0, duration: REVEAL_DUR * 0.4 }, 'reveal')
+      tl.to(proxy, { tableau: 1, duration: REVEAL_DUR * 0.5, ease: 'power1.out' }, 'reveal')
+      // color unlock — from here, saturated signal dithers in its true color
+      tl.to(trueColorState, { value: 1, duration: 1.0, ease: 'power1.inOut' }, 'reveal')
+      tl.to(photoMeshRef.current!.userData, { baseOpacity: 1, duration: REVEAL_DUR, ease: 'power2.out' }, `reveal+=${REVEAL_DUR * 0.25}`)
+      tl.fromTo(photoMeshRef.current!.scale,
+        { x: 0.9, y: 0.9, z: 1 },
+        { x: 1, y: 1, z: 1, duration: REVEAL_DUR * 1.6, ease: 'power2.out' },
+        `reveal+=${REVEAL_DUR * 0.25}`)
+      tl.to(labelBase.current, { title: 1, duration: 0.6 }, `reveal+=${REVEAL_DUR * 0.5}`)
+      ;(['breaker', 'builder'] as const).forEach((role, k) => {
+        const at = `reveal+=${REVEAL_DUR * 0.55 + k * 0.18}`
+        const g = scaleRefs.current[role]
+        const m = pillMeshRefs.current[role]
+        if (g) tl.fromTo(g.scale, { x: 0.001, y: 0.001, z: 0.001 }, { x: 1, y: 1, z: 1, duration: 0.7, ease: 'back.out(1.9)' }, at)
+        if (m) tl.to(m.userData, { baseOpacity: 0.95, duration: 0.4 }, at)
+        ringRefs.current[role].forEach((rm, ri) => {
+          if (rm) tl.to(rm.userData, { baseOpacity: ri === 0 ? 0.32 : 0.22, duration: 0.6 }, at)
+        })
+      })
+      tl.to(labelBase.current, { breaker: 1, builder: 1, duration: 0.6 }, `reveal+=${REVEAL_DUR * 0.9}`)
       tl.to(proxy, { alertPulse: ALERT_SETTLE, duration: REVEAL_DUR, ease: 'power2.inOut' }, 'reveal')
     })
   }
@@ -285,40 +408,53 @@ export function Layer1Identity() {
   const doFastReveal = () => {
     useSystemStore.getState().breachNode('layer1-mlp')
     useSystemStore.getState().setL1Status('done')
-    useSystemStore.getState().setL1LogText('>> IDENTITY RESOLVED')
-    gsap.killTweensOf(wireRefs.current[0]!.scale)
-    wireRefs.current[0]!.scale.set(1, 1, 1)
+    useSystemStore.getState().setL1LogText('>> IDENTITY RESOLVED // red or blue')
+    gsap.killTweensOf(entityWireRef.current!.scale)
+    entityWireRef.current!.scale.set(1, 1, 1)
     completedRef.current = true
+    proxyRef.current.tableau = 1
+    trueColorState.value = 1
 
     if (ctxRef.current) ctxRef.current.revert()
 
     ctxRef.current = gsap.context(() => {
       const tl = gsap.timeline()
-      tl.to(wireRefs.current[0]!.userData, { baseOpacity: 0.6, duration: 0.4 }, 0)
-      tl.to(solidRefs.current[0]!.userData, { baseOpacity: 0.15, duration: 0.4 }, 0)
-      tl.to([wireRefs.current[1]!.userData, wireRefs.current[2]!.userData], { baseOpacity: 0.6, duration: 0.5 }, 0.1)
-      tl.to([solidRefs.current[1]!.userData, solidRefs.current[2]!.userData], { baseOpacity: 0.28, duration: 0.5 }, 0.1)
-      tl.to([lineLRef.current!.userData, lineRRef.current!.userData], { baseOpacity: 0.42, duration: 0.5 }, 0.1)
-      tl.to([nodeLabelRefs.current[1], nodeLabelRefs.current[2]], { opacity: 1, duration: 0.4, stagger: 0.1 }, 0.3)
+      tl.to(entityWireRef.current!.userData, { baseOpacity: 0, duration: 0.4 }, 0)
+      tl.to(entitySolidRef.current!.userData, { baseOpacity: 0, duration: 0.4 }, 0)
+      tl.to(photoMeshRef.current!.userData, { baseOpacity: 1, duration: 0.5 }, 0.1)
+      ;(['breaker', 'builder'] as const).forEach((role, k) => {
+        const g = scaleRefs.current[role]
+        const m = pillMeshRefs.current[role]
+        if (g) tl.fromTo(g.scale, { x: 0.001, y: 0.001, z: 0.001 }, { x: 1, y: 1, z: 1, duration: 0.45, ease: 'back.out(1.7)' }, 0.15 + k * 0.1)
+        if (m) tl.to(m.userData, { baseOpacity: 0.95, duration: 0.35 }, 0.15 + k * 0.1)
+        ringRefs.current[role].forEach((rm, ri) => {
+          if (rm) tl.to(rm.userData, { baseOpacity: ri === 0 ? 0.32 : 0.22, duration: 0.4 }, 0.15 + k * 0.1)
+        })
+      })
+      tl.to(labelBase.current, { title: 1, breaker: 1, builder: 1, duration: 0.5 }, 0.3)
       useSystemStore.getState().setAlertLevel(ALERT_SETTLE)
     })
+  }
+
+  // ── Resume: shared by pill choice + skip-scroll listener ────────────────────
+  const resumeScroll = () => {
+    idleTweenRef.current?.kill()
+    idleTweenRef.current = null
+    if (removeListenersRef.current) {
+      removeListenersRef.current()
+      removeListenersRef.current = null
+    }
+    useSystemStore.getState().setL1ShowResume(false)
+    lenisRef.instance?.start()
+    useSystemStore.getState().setCinematicMode(false)
+    cinematicLocalRef.current = false
   }
 
   // 🚨 PATCH 3: Hardened Listener Management
   const attachScrollResumeListener = () => {
     setTimeout(() => useSystemStore.getState().setL1ShowResume(true), 300)
 
-    const onFirstInput = () => {
-      window.removeEventListener('wheel', onFirstInput, true)
-      window.removeEventListener('touchstart', onFirstInput, true)
-      window.removeEventListener('keydown', onFirstInput, true)
-      removeListenersRef.current = null // Clear ref
-
-      useSystemStore.getState().setL1ShowResume(false)
-      lenisRef.instance?.start()
-      useSystemStore.getState().setCinematicMode(false)
-      cinematicLocalRef.current = false
-    }
+    const onFirstInput = () => resumeScroll()
 
     // Save cleanup func so useEffect can wipe it on unmount
     removeListenersRef.current = () => {
@@ -332,15 +468,77 @@ export function Layer1Identity() {
     window.addEventListener('keydown', onFirstInput, { capture: true })
   }
 
-  useFrame((_, delta) => {
+  // ── THE CHOICE ───────────────────────────────────────────────────────────────
+  // Re-clickable: after the first pick, clicking the OTHER pill switches the
+  // lens (same as the top-center toggle). Visual sync happens in the
+  // selectedRole subscription; this handles breach, camera and alert beats.
+  const choosePill = (role: PillRole) => {
+    if (!completedRef.current) return
+    if (choiceRef.current === role) return
+    const isFirst = choiceRef.current === null
+    document.body.style.cursor = 'auto'
+
+    const store = useSystemStore.getState()
+    store.breachNode(role === 'breaker' ? 'pill-red' : 'pill-blue')
+    store.setSelectedRole(role)
+
+    const chosen = scaleRefs.current[role]
+    idleTweenRef.current?.kill()
+    idleTweenRef.current = null
+
+    const tl = gsap.timeline()
+    if (chosen) {
+      tl.to(chosen.scale, { x: 1.3, y: 1.3, z: 1.3, duration: 0.28, ease: 'back.out(3)' }, 0)
+      tl.to(chosen.scale, { x: 1.12, y: 1.12, z: 1.12, duration: 0.5, ease: 'power2.out' }, 0.28)
+    }
+
+    // Red spikes the corruption (deliberate glitch), blue cools the system.
+    if (isFirst && cinematicLocalRef.current) {
+      // Dramatic dolly toward the figure as the pill goes down
+      tl.to(proxyRef.current, { dive: proxyRef.current.dive + 0.9, duration: 1.0, ease: 'power2.out' }, 0)
+      const flare = role === 'breaker' ? 0.8 : 0.06
+      tl.to(proxyRef.current, { alertPulse: flare, duration: 0.3, ease: 'power2.out' }, 0)
+      if (role === 'breaker') tl.to(proxyRef.current, { alertPulse: 0.4, duration: 0.8, ease: 'power2.inOut' }, 0.4)
+      gsap.delayedCall(1.15, resumeScroll)
+    } else {
+      store.setAlertLevel(role === 'breaker' ? 0.7 : 0.08) // AlertDecay cools it from here
+    }
+  }
+
+  // ── Per-frame tableau upkeep (labels, pill spin/bob/hover) ─────────────────
+  const updateTableau = (t: number, delta: number, vis: number) => {
+    if (titleRef.current) titleRef.current.style.opacity = (labelBase.current.title * vis).toFixed(3)
+    ;(['breaker', 'builder'] as const).forEach((role, k) => {
+      const label = pillLabelRefs.current[role]
+      if (label) label.style.opacity = (labelBase.current[role] * vis).toFixed(3)
+
+      if (vis <= 0.01) return
+      const hoverOn = pillHoverTarget.current[role] && completedRef.current && choiceRef.current !== role
+      pillHover.current[role] = THREE.MathUtils.damp(pillHover.current[role], hoverOn ? 1 : 0, 8, delta)
+      const spin = spinRefs.current[role]
+      if (spin) {
+        spin.rotation.y = t * 0.6 + k * Math.PI * 0.5
+        spin.position.y = Math.sin(t * 1.5 + k * 1.7) * 0.04
+        spin.scale.setScalar(1 + pillHover.current[role] * 0.2)
+      }
+      // Gyro reticle rings — incremental so hover/choice speed changes don't jump
+      const ringSpeed = (0.55 + pillHover.current[role] * 1.7) * ringBoost.current[role]
+      const [ringA, ringB] = ringRefs.current[role]
+      if (ringA) ringA.rotation.y += delta * ringSpeed
+      if (ringB) ringB.rotation.x += delta * ringSpeed * 0.8
+    })
+  }
+
+  useFrame((state, delta) => {
     const { bootComplete, cinematicMode } = useSystemStore.getState()
     if (!bootComplete) return
+    const t = state.clock.elapsedTime
 
     if (cinematicMode) {
       const p = proxyRef.current
-      
+
       // Zustand optimized call - sets memory without full render cycle where possible
-      useSystemStore.getState().setAlertLevel(p.alertPulse) 
+      useSystemStore.getState().setAlertLevel(p.alertPulse)
 
       tmpPos.current.copy(START_CAM).addScaledVector(FORWARD, p.dive)
       camera.position.copy(tmpPos.current)
@@ -359,6 +557,8 @@ export function Layer1Identity() {
           const norm = 1 - Math.min(1, Math.abs(ahead - peakAt) / LABEL_AHEAD_RANGE)
           target = Math.max(0, norm)
         }
+        // ENTITY label yields to the tableau on the final reveal
+        if (i === 0) target *= 1 - p.tableau
         const isFadingOut = target < labelDamp.current[i]
         const dampSpeed = isFadingOut ? LABEL_OUT_DAMP : LABEL_IN_DAMP
         labelDamp.current[i] = THREE.MathUtils.damp(labelDamp.current[i], target, dampSpeed, delta)
@@ -368,7 +568,6 @@ export function Layer1Identity() {
 
       const pulse = proxyRef.current.latticePulse
       if (pulse > 0.001) {
-        const t = performance.now() * 0.001
         latticeNodeRefs.current.forEach((m, i) => {
           if (!m) return
           const s = 1 + Math.sin(t * 6 + i * 0.71) * 0.35 * pulse
@@ -376,6 +575,7 @@ export function Layer1Identity() {
         })
       }
 
+      updateTableau(t, delta, 1)
       applyMaterialOpacities(1)
       return
     }
@@ -390,6 +590,7 @@ export function Layer1Identity() {
       stationsGroupRef.current.visible = completedRef.current ? false : false
     }
 
+    updateTableau(t, delta, vis)
     if (vis > 0.01) applyMaterialOpacities(vis)
   })
 
@@ -399,28 +600,30 @@ export function Layer1Identity() {
       const mat = m.material as THREE.Material & { opacity: number }
       if (m.userData.baseOpacity !== undefined) mat.opacity = m.userData.baseOpacity * vis
     }
-    wireRefs.current.forEach(apply)
-    solidRefs.current.forEach(apply)
-    
-    const applyLine = (g: THREE.Group | null) => {
-      if (!g) return
-      const base = (g as any).userData.baseOpacity
-      if (base === undefined) return
-      g.traverse((child) => {
-        const c = child as any
-        if (c.material && 'opacity' in c.material) c.material.opacity = base * vis
-      })
-    }
-    applyLine(lineLRef.current)
-    applyLine(lineRRef.current)
+    apply(entityWireRef.current)
+    apply(entitySolidRef.current)
+    apply(photoMeshRef.current)
+    apply(pillMeshRefs.current.breaker)
+    apply(pillMeshRefs.current.builder)
+    ringRefs.current.breaker.forEach(apply)
+    ringRefs.current.builder.forEach(apply)
   }
 
   const enablePointer  = () => { if (!isHackingRef.current) document.body.style.cursor = 'crosshair' }
   const disablePointer = () => { document.body.style.cursor = 'auto' }
 
+  const pillPointerOver = (role: PillRole) => {
+    pillHoverTarget.current[role] = true
+    if (completedRef.current && choiceRef.current !== role) document.body.style.cursor = 'pointer'
+  }
+  const pillPointerOut = (role: PillRole) => {
+    pillHoverTarget.current[role] = false
+    document.body.style.cursor = 'auto'
+  }
+
   return (
     <>
-      {/* ═══ ENTITY / BUILDER / BREAKER ═══════════════════════ */}
+      {/* ═══ ENTITY + THE CHOICE ═══════════════════════════════ */}
       <group ref={groupRef} position={[L1_ANCHOR.x, L1_ANCHOR.y - 1.4, L1_ANCHOR.z + 1.0]}>
 
         <mesh position={[0, 0, 0]} onClick={(e) => { e.stopPropagation(); executeKillChain() }} onPointerOver={enablePointer} onPointerOut={disablePointer}>
@@ -428,48 +631,86 @@ export function Layer1Identity() {
           <meshBasicMaterial transparent opacity={0} depthWrite={false} color="#ff0000" />
         </mesh>
 
-        <Line ref={lineLRef as any} points={[[0, 0, 0], [-2.2, 0, 0]]} color="#00E5FF" lineWidth={1.5} transparent depthWrite={false} />
-        <Line ref={lineRRef as any} points={[[0, 0, 0], [ 2.2, 0, 0]]} color="#FF2D55" lineWidth={1.5} transparent depthWrite={false} />
-
-        {NODE_OFFSETS.map((offset, i) => (
-          <group key={i} position={offset}>
-            <mesh ref={(el) => { wireRefs.current[i] = el }}>
-              <icosahedronGeometry args={[0.25, 1]} />
-              <meshBasicMaterial color={NODE_COLORS[i]} wireframe transparent depthWrite={false} />
-            </mesh>
-            <mesh ref={(el) => { solidRefs.current[i] = el }}>
-              <icosahedronGeometry args={[0.25, 1]} />
-              <meshBasicMaterial color={NODE_COLORS[i]} transparent depthWrite={false} toneMapped={false} />
-            </mesh>
-            <Html position={[0, -0.42, 0]} center distanceFactor={7} style={{ pointerEvents: 'none' }}>
-              <div ref={(el) => { nodeLabelRefs.current[i] = el }} style={{
-                opacity: i === 0 ? 0 : 0, 
-                color: NODE_COLORS[i],
-                fontFamily: 'var(--font-mono), "JetBrains Mono", monospace',
-                fontSize: '10px',
-                letterSpacing: '0.1em',
-                whiteSpace: 'nowrap',
-                textShadow: `0 0 10px ${NODE_COLORS[i]}`,
-              }}>
-                {NODE_LABELS[i]}
-              </div>
-            </Html>
-          </group>
-        ))}
+        <mesh ref={entityWireRef}>
+          <icosahedronGeometry args={[0.25, 1]} />
+          <meshBasicMaterial color="#FFFFFF" wireframe transparent depthWrite={false} />
+        </mesh>
+        <mesh ref={entitySolidRef}>
+          <icosahedronGeometry args={[0.25, 1]} />
+          <meshBasicMaterial color="#FFFFFF" transparent depthWrite={false} toneMapped={false} />
+        </mesh>
 
         <Html position={[0, 1.0, 0]} center distanceFactor={7} style={{ pointerEvents: 'none' }}>
           <div ref={(el) => { stationLabelRefs.current[0] = el }} style={{
             opacity: 0,
-            color: NODE_COLORS[0],
+            color: '#FFFFFF',
             fontFamily: 'var(--font-mono), "JetBrains Mono", monospace',
             fontSize: '10px',
             letterSpacing: '0.18em',
             whiteSpace: 'nowrap',
-            textShadow: `0 0 10px ${NODE_COLORS[0]}`,
+            textShadow: '0 0 10px #FFFFFF',
           }}>
             {STATION_LABELS[0]}
           </div>
         </Html>
+
+        {/* ═══ THE CHOICE — Morpheus tableau (lands on L1_ANCHOR = view center at return) ═══ */}
+        <group position={TABLEAU_OFFSET}>
+
+          <mesh ref={photoMeshRef} position={[0, 0.30, 0]} renderOrder={1}>
+            <planeGeometry args={[PHOTO_SIZE, PHOTO_SIZE]} />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} toneMapped={false} />
+          </mesh>
+
+          <Html position={[0, 2.05, 0]} center distanceFactor={7} style={{ pointerEvents: 'none' }}>
+            <div ref={titleRef} style={{ opacity: 0, textAlign: 'center', fontFamily: 'var(--font-mono), "JetBrains Mono", monospace', whiteSpace: 'nowrap' }}>
+              <div style={{ color: '#E6E6E9', fontSize: '15px', letterSpacing: '0.26em' }}>THIS IS YOUR LAST CHANCE</div>
+              <div style={{ color: '#E6E6E9', opacity: 0.55, fontSize: '11px', letterSpacing: '0.14em', marginTop: '5px' }}>after this, there is no turning back — choose a lens</div>
+            </div>
+          </Html>
+
+          {PILLS.map(({ role, x, color, name, sub }) => (
+            <group key={role} position={[x, PILL_Y, 0.25]}>
+
+              <group ref={(el) => { scaleRefs.current[role] = el }} scale={0.001}>
+                <group ref={(el) => { spinRefs.current[role] = el }}>
+                  <mesh ref={(el) => { pillMeshRefs.current[role] = el }} rotation={[0, 0, x < 0 ? -0.5 : 0.5]} renderOrder={2}>
+                    <capsuleGeometry args={[0.16, 0.44, 8, 20]} />
+                    <meshBasicMaterial color={color} transparent opacity={0} depthWrite={false} toneMapped={false} />
+                  </mesh>
+                </group>
+
+                {/* gyro reticle rings — the pill sits in a slow targeting gimbal */}
+                <mesh ref={(el) => { ringRefs.current[role][0] = el }} rotation={[0.35, 0, 0]} renderOrder={1}>
+                  <torusGeometry args={[0.52, 0.012, 8, 64]} />
+                  <meshBasicMaterial color="#E6E6E9" transparent opacity={0} depthWrite={false} />
+                </mesh>
+                <mesh ref={(el) => { ringRefs.current[role][1] = el }} rotation={[0, 0.5, 0.3]} renderOrder={1}>
+                  <torusGeometry args={[0.38, 0.01, 8, 56]} />
+                  <meshBasicMaterial color="#E6E6E9" transparent opacity={0} depthWrite={false} />
+                </mesh>
+
+                {/* invisible hit target — comfortable click area */}
+                <mesh
+                  onClick={(e) => { e.stopPropagation(); choosePill(role) }}
+                  onPointerOver={(e) => { e.stopPropagation(); pillPointerOver(role) }}
+                  onPointerOut={() => pillPointerOut(role)}
+                >
+                  <sphereGeometry args={[0.55, 12, 12]} />
+                  <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+                </mesh>
+              </group>
+
+              <Html position={[0, -0.92, 0]} center distanceFactor={7} style={{ pointerEvents: 'none' }}>
+                <div ref={(el) => { pillLabelRefs.current[role] = el }} style={{ opacity: 0, textAlign: 'center', fontFamily: 'var(--font-mono), "JetBrains Mono", monospace', whiteSpace: 'nowrap' }}>
+                  <div style={{ color, fontSize: '13px', fontWeight: 700, letterSpacing: '0.16em', textShadow: `0 0 14px ${color}` }}>{name}</div>
+                  <div style={{ color: '#E6E6E9', opacity: 0.5, fontSize: '10px', letterSpacing: '0.1em', marginTop: '4px' }}>{sub}</div>
+                </div>
+              </Html>
+
+            </group>
+          ))}
+        </group>
 
       </group>
 

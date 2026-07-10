@@ -3,6 +3,7 @@ import { useRef, useEffect, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { gsap } from 'gsap'
+import { useSystemStore } from '@/lib/store'
 
 const CANVAS_W = 2048
 const CANVAS_H = 450
@@ -239,9 +240,15 @@ export function HeroText() {
     return () => ctx.revert()
   }, [texMap])
 
-  useFrame(({ clock }) => {
+  const liftRef = useRef(0)
+  useFrame(({ clock }, delta) => {
     if (!groupRef.current) return
-    groupRef.current.position.y = Math.sin(clock.elapsedTime * 0.4) * 0.035
+    // Surface content recedes upward while a Layer-1 cinematic owns the screen,
+    // so the pill tableau never collides with the hero type.
+    const cin = useSystemStore.getState().cinematicMode
+    liftRef.current = THREE.MathUtils.damp(liftRef.current, cin ? 4.5 : 0, 2.2, delta)
+    groupRef.current.position.y = Math.sin(clock.elapsedTime * 0.4) * 0.035 + liftRef.current
+    groupRef.current.visible = liftRef.current < 4.4
   })
 
   if (!texMap) return null

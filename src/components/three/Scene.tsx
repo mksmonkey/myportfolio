@@ -16,14 +16,40 @@ import { useSystemStore } from '@/lib/store'
 import { useQuality } from '@/lib/useQuality'
 import { useMouse, mouseTarget, mouseSmooth } from '@/lib/useMouse'
 import { DescentShaft } from './DescentShaft'
-import { CameraRig } from './rig/CameraRig'
+import { CameraRig, scrollProgress } from './rig/CameraRig'
 import { HeroText } from './HeroText'
 import { Layer1Identity } from '../sections/Layer1Identity'
 import { Layer2Projects } from '../sections/Layer2Projects'
-import { DitherEffectImpl } from './postfx/DitherEffect'
+import { Layer3Arsenal } from '../sections/Layer3Arsenal'
+import { Layer4History } from '../sections/Layer4History'
+import { Layer5Root } from '../sections/Layer5Root'
+import { DitherEffectImpl, trueColorState, rootDecrypt } from './postfx/DitherEffect'
 
 // Module-level boot state — exported so BootSequence can tween it; PostFX reads each frame.
 export const ditherState = { amount: 1.0 }
+
+// ── Scroll-focus bands ────────────────────────────────────────────────────────
+// When scroll progress sits inside a band's plateau, the layer's content zone
+// decrypts (uFocus → 1). Between bands (and on the hero + Layer 1, which keep
+// the signature dither), everything re-encrypts. Trapezoid: 28% rise/fall.
+// L5 upper edge extends past 1.0 so focus holds at the very bottom.
+const FOCUS_BANDS: [number, number][] = [
+  [0.44, 0.60],  // L2 ~/systems
+  [0.65, 0.77],  // L3 ~/arsenal
+  [0.80, 0.92],  // L4 ~/history
+  [0.94, 1.06],  // L5 ~/root
+]
+
+function focusAt(p: number): number {
+  let f = 0
+  for (const [a, b] of FOCUS_BANDS) {
+    const w = b - a
+    const rise = THREE.MathUtils.smoothstep(p, a, a + w * 0.28)
+    const fall = 1 - THREE.MathUtils.smoothstep(p, b - w * 0.28, b)
+    f = Math.max(f, Math.min(rise, fall))
+  }
+  return f
+}
 
 // 🚨 THE DECAY ENGINE: Har frame pe alert level ko cool down karega
 function AlertDecay() {
@@ -52,6 +78,7 @@ function PostFX({ quality }: { quality: 'high' | 'low' }) {
   const bloomRef    = useRef<BloomEffect | null>(null)
   const ditherRef   = useRef<DitherEffectImpl | null>(null)
   const alertLerp   = useRef(0)
+  const focusLerp   = useRef(0)
 
   useLayoutEffect(() => {
     const composer = new EffectComposerImpl(gl, {
@@ -125,7 +152,14 @@ function PostFX({ quality }: { quality: 'high' | 'low' }) {
       if (mTime) mTime.value = (mTime.value as number) + delta
 
       const mAmount = d.uniforms.get('uDitherAmount')
-      if (mAmount) mAmount.value = ditherState.amount
+      if (mAmount) mAmount.value = ditherState.amount * (1 - rootDecrypt.value * 0.94)
+
+      const mChoice = d.uniforms.get('uChoiceActive')
+      if (mChoice) mChoice.value = trueColorState.value
+
+      focusLerp.current = THREE.MathUtils.damp(focusLerp.current, focusAt(scrollProgress.value), 4, delta)
+      const mFocus = d.uniforms.get('uFocus')
+      if (mFocus) mFocus.value = focusLerp.current
 
       const { width, height } = state.size
       const mRes = d.uniforms.get('uResolution')
@@ -164,11 +198,14 @@ export default function Scene() {
         <ambientLight intensity={0.08} />
 
         {/* 🚨 VISIBILITY TOGGLE: Only render these if boot is complete */}
-        <group visible={bootComplete}> 
+        <group visible={bootComplete}>
             <DescentShaft />
             <HeroText />
-             <Layer1Identity /> 
+             <Layer1Identity />
             <Layer2Projects />
+            <Layer3Arsenal />
+            <Layer4History />
+            <Layer5Root />
         </group>
 
         {/* Camera Rig hamesha on rahega, par jab group invisible hoga toh wo black void dekhega */}

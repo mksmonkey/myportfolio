@@ -37,7 +37,7 @@ The site is a **vertical descent** through a system's layers (camera travels DOW
 | Layer | Route | Section | Reveal mechanic | Built in |
 |------|-------|---------|-----------------|----------|
 | 0 | `~/surface`  | Hero (name + tagline) | **Dither resolve** + mouse lens (establishes signature) | Prompt 2.5 |
-| 1 | `~/identity` | About — BUILD // BREAK | **Wireframe→Solid materialization** (build) & Solid→Wireframe (break) | Prompt 3 |
+| 1 | `~/identity` | About — BUILD // BREAK | **Kill-chain cinematic** (packet dive through router→ISP→server→NN) ending in a **Morpheus red/blue-pill choice** — Mayank's photo (`/public/mypic.jpg`, posterized mono) center, RED pill = `~/breaker` (security), BLUE pill = `~/builder` (web dev); the pick sets `selectedRole`, which swaps Layer 2's card sets | Prompt 3/4 |
 | 2 | `~/systems`  | Projects (most important) | **ASCII-rain resolve** — each project an "encrypted file" that decrypts to content; hover reveals vuln→patch | Prompt 3 |
 | 3 | `~/arsenal`  | Skills | **Dither callback** — skills resolve from a dithered "weapon rack", category-wise | Prompt 4 |
 | 4 | `~/history`  | Experience | **Scanline-glitch reveal** — jobs are "system logs" swept in by a CRT scanline | Prompt 4 |
@@ -145,9 +145,9 @@ src/
 - [x] **Prompt 2** — SystemCore (GPU particle field, GLSL morph calm↔chaos) + CameraRig foundation. *(Outcome: looked too generic — being reworked.)*
 - [x] **Prompt 2.5** — Dither Bayer pass + mouse decryption lens + vertical descent camera + Hero (Layer 0) working.
 - [x] **Prompt 3** — 4 surgical bug fixes (CameraRig scroll inversion, lumaLift 0.30, HeroText fixed 9.0×3.96 world-unit sizing + canvas bg fill, alert tuning) + cinematic 5-beat hero boot sequence (`BootSequence.tsx`); `ditherState` exported for coordinated tween timing; scroll cue gated on `bootComplete`.
-- [ ] **Prompt 4** — Layer 1 (wireframe build/break) + Layer 2 (ASCII-rain projects, vuln→patch reveals) + content. **← next**
-- [ ] **Prompt 5** — Layer 3 (skills) + Layer 4 (scanline logs) + Layer 5 (contact) + terminal REPL.
-- [ ] **Prompt 6** — Boot/auth sequence polish, guided-mode fallback, mobile perf pass, remove debug slider.
+- [x] **Prompt 4** — Layer 1 kill-chain cinematic (5 stations, NN lattice, segmented return) ending in the **Morpheus pill choice** (photo tableau from `/public/mypic.jpg`; red=`breaker`/blue=`builder` → `setSelectedRole`; skip-scroll defaults to builder) + Layer 2 ASCII-rain projects with **dual card sets** (BUILDER/BREAKER, swapped via `selectedRole`) + DitherEffect chroma-preservation & **colored dither** after choice (`trueColorState`/`uChoiceActive`) + hero lift-out during cinematics + gyro reticle rings on pills + **persistent lens toggle** (top-center, after first kill chain; pills also re-clickable) + **RoleShiftOverlay** reality-shift veil on every role change (also masks the cinematic→scroll camera cut) + L1 log line & choice hint in `page.tsx`.
+- [x] **Prompt 5** — Layer 3 `~/arsenal` (3 canvas-texture weapon racks BUILD/SECURE/BREAK, role-lens bias, staggered reveal, BREAK-rack honeypot → breachNode) + Layer 4 `~/history` (5 log blocks: 4 jobs + credentials/edu/CTF; CRT scanline scrub-head tied to scroll progress, blocks verify as it passes) + Layer 5 `~/root` (rootDecrypt full-decrypt via DitherEffect flag, ACCESS GRANTED + contact canvas planes, pulsing root core) + **Terminal REPL** (`overlay/Terminal.tsx`, DOM, visible at layer 5: help/whoami/projects/history/arsenal/breach/contact/red/blue/clear/exit + rm -rf easter egg; red/blue swap the lens through the store). Bands (non-overlapping, transit gaps between): L1 0.15–0.40 · L2 0.44–0.60 · L3 0.65–0.77 · L4 0.80–0.92 · L5 0.94–1.0; scroll shaft 700vh. **Scroll-focus decrypt**: `FOCUS_BANDS` + `focusAt()` in Scene.tsx drive the `uFocus` uniform — when a layer is centered its screen-center content zone resolves out of the dither (readable), edges stay encrypted; in the gaps everything re-encrypts. Hero + L1 excluded (keep signature dither).
+- [ ] **Prompt 6** — Boot/auth sequence polish, guided-mode fallback, mobile perf pass, remove debug slider. **← next**
 
 ---
 

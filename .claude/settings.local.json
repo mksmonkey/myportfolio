@@ -31,7 +31,15 @@
       "Bash(Write-Output \"ok\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/)",
       "Bash(git -C /d/myportfolio status --short)",
-      "Bash(git -C /d/myportfolio log --oneline -5)"
+      "Bash(git -C /d/myportfolio log --oneline -5)",
+      "PowerShell(Move-Item *)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 30)",
+      "PowerShell($deadline = \\(Get-Date\\).AddSeconds\\(60\\); do { Start-Sleep -Milliseconds 1500; try { $r = Invoke-WebRequest -Uri http://localhost:3000 -UseBasicParsing -TimeoutSec 5; break } catch {} } while \\(\\(Get-Date\\) -lt $deadline\\); if \\($r\\) { \"STATUS: $\\($r.StatusCode\\)\"; if \\($r.Content -match 'mypic|root@mayank'\\) { \"MARKERS FOUND\" } } else { \"NO RESPONSE\" })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri http://localhost:3000/mypic.jpg -UseBasicParsing -TimeoutSec 10; \"mypic.jpg: $\\($r.StatusCode\\) \\($\\($r.Headers.'Content-Type'\\), $\\($r.RawContentLength\\) bytes\\)\" } catch { \"mypic.jpg FAILED: $_\" })",
+      "PowerShell(Get-Process *)",
+      "PowerShell($deadline = \\(Get-Date\\).AddSeconds\\(45\\); $r = $null; do { Start-Sleep -Milliseconds 1500; try { $r = Invoke-WebRequest -Uri http://localhost:3000 -UseBasicParsing -TimeoutSec 5; break } catch {} } while \\(\\(Get-Date\\) -lt $deadline\\); if \\($r\\) { \"STATUS: $\\($r.StatusCode\\)\" } else { \"NO RESPONSE\" })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri http://localhost:3000 -UseBasicParsing -TimeoutSec 15; \"STATUS: $\\($r.StatusCode\\)\" } catch { \"FAILED: $_\" })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri http://localhost:3000 -UseBasicParsing -TimeoutSec 20; \"STATUS: $\\($r.StatusCode\\)\" } catch { \"FAILED: $_\" })"
     ]
   }
 }
