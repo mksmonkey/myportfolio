@@ -9,6 +9,8 @@ export interface SystemState {
   currentLayer: number
   cinematicMode: boolean
   selectedRole: 'builder' | 'breaker' | null
+  descentUnlocked: boolean
+  choicePhase: 'locked' | 'pending' | 'chosen'
   // Layer 1 overlay state (drives DOM sibling outside Canvas)
   l1Status: 'idle' | 'running' | 'done'
   l1LogText: string
@@ -23,6 +25,8 @@ export interface SystemState {
   setCurrentLayer: (n: number) => void
   setCinematicMode: (v: boolean) => void
   setSelectedRole: (r: 'builder' | 'breaker' | null) => void
+  setDescentUnlocked: (v: boolean) => void
+  setChoicePhase: (p: 'locked' | 'pending' | 'chosen') => void
   setL1Status: (s: 'idle' | 'running' | 'done') => void
   setL1LogText: (t: string) => void
   setL1ShowResume: (v: boolean) => void
@@ -41,6 +45,8 @@ const defaults = {
   currentLayer: 0,
   cinematicMode: false,
   selectedRole: null as 'builder' | 'breaker' | null,
+  descentUnlocked: false,
+  choicePhase: 'locked' as 'locked' | 'pending' | 'chosen',
   l1Status: 'idle' as 'idle' | 'running' | 'done',
   l1LogText: '[ SYSTEM IDLE ]',
   l1ShowResume: false,
@@ -68,6 +74,8 @@ export const useSystemStore = create<SystemState>((set, get) => ({
   setCurrentLayer: (n) => set({ currentLayer: n }),
   setCinematicMode: (v) => set({ cinematicMode: v }),
   setSelectedRole: (r) => set({ selectedRole: r }),
+  setDescentUnlocked: (v) => set({ descentUnlocked: v }),
+  setChoicePhase: (p) => set({ choicePhase: p }),
   setL1Status: (s) => set({ l1Status: s }),
   setL1LogText: (t) => set({ l1LogText: t }),
   setL1ShowResume: (v) => set({ l1ShowResume: v }),

@@ -13,6 +13,7 @@ export const scrollProgress = { value: 0 }
 
 // How far in front of the camera each layer anchor sits (world units).
 export const LAYER_VIEW_DIST = 4.5
+const LOCKED_DESCENT_MAX = 0.405
 
 // Pure camera-path math — matches the lerps in useFrame exactly.
 // Returns fresh Vector3s so callers can mutate freely.
@@ -88,7 +89,9 @@ export function CameraRig() {
     if (useSystemStore.getState().cinematicMode) return
     if (quality === 'low') return
 
-    const raw = scrollProg.current
+    const store = useSystemStore.getState()
+    const rawInput = scrollProg.current
+    const raw = store.descentUnlocked ? rawInput : Math.min(rawInput, LOCKED_DESCENT_MAX)
     const inLayer1 = raw >= 0.17 && raw <= 0.43
     const dampFactor = inLayer1 ? 1.6 : 2.5
 
@@ -101,7 +104,7 @@ export function CameraRig() {
     const newLayer = raw < 0.14 ? 0 : raw < 0.42 ? 1 : raw < 0.625 ? 2 : raw < 0.785 ? 3 : raw < 0.93 ? 4 : 5
     if (newLayer !== currentLayerRef.current) {
       currentLayerRef.current = newLayer
-      useSystemStore.getState().setCurrentLayer(newLayer)
+      store.setCurrentLayer(newLayer)
     }
 
     // ── Descent path ─────────────────────────────────────────────────────────

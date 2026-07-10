@@ -69,7 +69,7 @@ function runCommand(raw: string): TLine[] | 'clear' {
     case 'breach': {
       const nodes = [...store.breached]
       if (nodes.length === 0) {
-        return [{ t: 'no nodes breached yet — go hover the encrypted files in ~/systems', c: '#5A6870' }]
+        return [{ t: 'no nodes breached yet — probe the dossiers in ~/systems', c: '#5A6870' }]
       }
       return [
         { t: `${nodes.length} node(s) compromised this session:`, c: '#FF6B00' },

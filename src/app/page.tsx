@@ -80,14 +80,13 @@ export default function Home() {
   useSmoothScroll()
   useAccentSync()
 
-  const alertLevel    = useSystemStore((s) => s.alertLevel)
-  const setAlertLevel = useSystemStore((s) => s.setAlertLevel)
   const bootComplete  = useSystemStore((s) => s.bootComplete)
   const currentLayer  = useSystemStore((s) => s.currentLayer)
   const l1Status      = useSystemStore((s) => s.l1Status)
   const l1LogText     = useSystemStore((s) => s.l1LogText)
   const l1ShowResume  = useSystemStore((s) => s.l1ShowResume)
   const selectedRole  = useSystemStore((s) => s.selectedRole)
+  const descentUnlocked = useSystemStore((s) => s.descentUnlocked)
 
   const switchRole = (r: 'breaker' | 'builder') => {
     const st = useSystemStore.getState()
@@ -142,7 +141,7 @@ export default function Home() {
 
         {/* Top-center: lens toggle — appears after the kill chain; switch views
             anytime without replaying the ritual */}
-        {l1Status === 'done' && (
+        {l1Status === 'done' && descentUnlocked && (
           <div
             style={{
               position:      'absolute',
@@ -158,7 +157,7 @@ export default function Home() {
             }}
           >
             {(['breaker', 'builder'] as const).map((r) => {
-              const active = (selectedRole ?? 'builder') === r
+              const active = selectedRole === r
               const col = r === 'breaker' ? '#FF2D55' : '#00E5FF'
               return (
                 <button
@@ -196,10 +195,10 @@ export default function Home() {
             ...monoStyle,
             opacity:    bootComplete ? 0.7 : 0,
             transition: bootComplete ? 'opacity 0.6s ease 0.3s' : 'none',
-            color:      l1ShowResume ? 'var(--accent)' : monoStyle.color,
+            color:      l1ShowResume && !descentUnlocked ? 'var(--accent)' : monoStyle.color,
           }}
         >
-          {l1ShowResume ? '◉ take a pill — or scroll to skip' : 'scroll to descend ↓'}
+          {l1ShowResume && !descentUnlocked ? 'choose a lens to descend' : 'scroll to descend'}
         </div>
 
         {/* Bottom-left: Layer 1 kill-chain log — visible once the hack starts */}
@@ -219,47 +218,40 @@ export default function Home() {
             {l1LogText}
           </div>
         )}
+
+        {descentUnlocked && (
+          <div
+            style={{
+              position: 'absolute',
+              right: '1.8rem',
+              bottom: '2.2rem',
+              display: 'flex',
+              gap: '0.42rem',
+              alignItems: 'center',
+              ...monoStyle,
+              opacity: 0.78,
+            }}
+          >
+            {['identity', 'systems', 'arsenal', 'history', 'root'].map((node, i) => (
+              <span
+                key={node}
+                style={{
+                  color: i <= Math.max(0, currentLayer - 1) ? 'var(--accent)' : 'rgba(230,230,233,0.28)',
+                  textShadow: i <= Math.max(0, currentLayer - 1) ? '0 0 10px var(--accent)' : 'none',
+                }}
+              >
+                {node}
+                {i < 4 ? ' /' : ''}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── DOM layout layer (above chrome in z for interactive elements) ─────── */}
       <div style={{ position: 'relative', zIndex: 30, pointerEvents: 'none' }}>
-
-        {/* ── [DEBUG] alertLevel slider — REMOVE IN PROMPT 4 ──────────────────
-            Drag 0→1 to verify the dither corruption / glitch pipeline.         */}
-        <div
-          style={{
-            position:       'fixed',
-            bottom:         '1.5rem',
-            right:          '1.5rem',
-            zIndex:         100,
-            pointerEvents:  'auto',
-            background:     'rgba(10,10,11,0.9)',
-            backdropFilter: 'blur(8px)',
-            border:         '1px solid var(--accent)',
-            borderRadius:   '0.5rem',
-            padding:        '0.65rem 1rem',
-            fontFamily:     'var(--font-mono)',
-            fontSize:       '0.65rem',
-            color:          'var(--text)',
-            display:        'flex',
-            flexDirection:  'column',
-            gap:            '0.35rem',
-          }}
-        >
-          <span style={{ opacity: 0.5 }}>[DEBUG] alertLevel: {alertLevel.toFixed(2)}</span>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.0001}
-            value={alertLevel}
-            onChange={(e) => setAlertLevel(parseFloat(e.target.value))}
-            style={{ width: '140px', cursor: 'pointer', accentColor: 'var(--accent)' }}
-          />
-        </div>
-
-        {/* 700 vh scroll shaft — 6 layers with breathing room between bands */}
-        <div style={{ height: '700vh', pointerEvents: 'none' }} />
+        {/* 560 vh scroll shaft — denser descent after the mandatory choice gate */}
+        <div style={{ height: '560vh', pointerEvents: 'none' }} />
       </div>
 
     </>

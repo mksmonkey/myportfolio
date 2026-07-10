@@ -309,7 +309,8 @@ export function Layer1Identity() {
           completedRef.current = true
           useSystemStore.getState().setL1Status('done')
           useSystemStore.getState().setL1LogText('>> CHOICE PENDING // red or blue')
-          attachScrollResumeListener()
+          useSystemStore.getState().setChoicePhase('pending')
+          showChoiceGate()
           // Idle breathing dolly while the visitor decides — killed on choice/resume
           idleTweenRef.current?.kill()
           idleTweenRef.current = gsap.to(proxyRef.current, {
@@ -406,9 +407,13 @@ export function Layer1Identity() {
   }
 
   const doFastReveal = () => {
+    useSystemStore.getState().setCinematicMode(true)
     useSystemStore.getState().breachNode('layer1-mlp')
     useSystemStore.getState().setL1Status('done')
     useSystemStore.getState().setL1LogText('>> IDENTITY RESOLVED // red or blue')
+    useSystemStore.getState().setChoicePhase('pending')
+    cinematicLocalRef.current = true
+    lenisRef.instance?.stop()
     gsap.killTweensOf(entityWireRef.current!.scale)
     entityWireRef.current!.scale.set(1, 1, 1)
     completedRef.current = true
@@ -433,11 +438,13 @@ export function Layer1Identity() {
       })
       tl.to(labelBase.current, { title: 1, breaker: 1, builder: 1, duration: 0.5 }, 0.3)
       useSystemStore.getState().setAlertLevel(ALERT_SETTLE)
+      showChoiceGate()
     })
   }
 
-  // ── Resume: shared by pill choice + skip-scroll listener ────────────────────
+  // ── Resume: only the pill choice unlocks the descent ────────────────────────
   const resumeScroll = () => {
+    if (!useSystemStore.getState().descentUnlocked) return
     idleTweenRef.current?.kill()
     idleTweenRef.current = null
     if (removeListenersRef.current) {
@@ -450,22 +457,8 @@ export function Layer1Identity() {
     cinematicLocalRef.current = false
   }
 
-  // 🚨 PATCH 3: Hardened Listener Management
-  const attachScrollResumeListener = () => {
+  const showChoiceGate = () => {
     setTimeout(() => useSystemStore.getState().setL1ShowResume(true), 300)
-
-    const onFirstInput = () => resumeScroll()
-
-    // Save cleanup func so useEffect can wipe it on unmount
-    removeListenersRef.current = () => {
-      window.removeEventListener('wheel', onFirstInput, true)
-      window.removeEventListener('touchstart', onFirstInput, true)
-      window.removeEventListener('keydown', onFirstInput, true)
-    }
-
-    window.addEventListener('wheel', onFirstInput, { passive: true, capture: true })
-    window.addEventListener('touchstart', onFirstInput, { passive: true, capture: true })
-    window.addEventListener('keydown', onFirstInput, { capture: true })
   }
 
   // ── THE CHOICE ───────────────────────────────────────────────────────────────
@@ -481,6 +474,10 @@ export function Layer1Identity() {
     const store = useSystemStore.getState()
     store.breachNode(role === 'breaker' ? 'pill-red' : 'pill-blue')
     store.setSelectedRole(role)
+    if (isFirst) {
+      store.setChoicePhase('chosen')
+      store.setDescentUnlocked(true)
+    }
 
     const chosen = scaleRefs.current[role]
     idleTweenRef.current?.kill()

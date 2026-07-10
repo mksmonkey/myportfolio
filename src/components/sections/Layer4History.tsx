@@ -23,12 +23,12 @@ const FACE_EULER = (() => {
 })()
 
 const BLOCK_W  = 4.7
-const BLOCK_H  = 0.72
+const BLOCK_H  = 0.78
 const CANVAS_W = 1500
 const CANVAS_H = 230
-const BLOCK_YS = [1.7, 0.85, 0, -0.85, -1.7]
-const SCAN_TOP = 2.15
-const SCAN_BOT = -2.2
+const BLOCK_YS = [1.5, 0.75, 0, -0.75, -1.5]
+const SCAN_TOP = 1.92
+const SCAN_BOT = -1.95
 
 interface LogEntry {
   time: string
@@ -114,6 +114,7 @@ function drawLog(ctx: CanvasRenderingContext2D, log: LogEntry, W: number, H: num
 export function Layer4History() {
   const groupRef  = useRef<THREE.Group>(null)
   const meshRefs  = useRef<(THREE.Mesh | null)[]>(Array(LOGS.length).fill(null))
+  const panelRefs = useRef<(HTMLDivElement | null)[]>(Array(LOGS.length).fill(null))
   const scanRef   = useRef<THREE.Mesh>(null)
   const headerRef = useRef<HTMLDivElement | null>(null)
   const visLerp   = useRef(0)
@@ -187,10 +188,17 @@ export function Layer4History() {
       const bl = blockLerp.current[i]
 
       const mat = mesh.material as THREE.MeshBasicMaterial
-      // pending blocks idle at a dim flicker — encrypted logs waiting for the sweep
-      const pending = 0.16 + Math.sin(t * 9 + i * 2.3) * 0.035
-      mat.opacity = vis * THREE.MathUtils.lerp(pending, 0.96, bl)
+      const pending = 0.42 + Math.sin(t * 9 + i * 2.3) * 0.035
+      const resolved = THREE.MathUtils.lerp(pending, 1, bl)
+      mat.opacity = vis * resolved
       mesh.position.x = (1 - bl) * Math.sin(t * 13 + i * 5.1) * 0.012
+
+      const panel = panelRefs.current[i]
+      if (panel) {
+        panel.style.opacity = (vis * THREE.MathUtils.lerp(0.72, 1, bl)).toFixed(3)
+        panel.style.transform = `translate3d(${(1 - bl) * Math.sin(t * 13 + i * 5.1) * 2}px, 0, 0)`
+        panel.style.borderColor = bl > 0.75 ? LOGS[i].accent : 'rgba(230,230,233,0.24)'
+      }
     }
   })
 
@@ -198,15 +206,69 @@ export function Layer4History() {
     <group position={[L4_ANCHOR.x, L4_ANCHOR.y, L4_ANCHOR.z]} rotation={FACE_EULER}>
       <group ref={groupRef} visible={false}>
         {LOGS.map((log, i) => (
-          <mesh
-            key={log.org}
-            ref={(el) => { meshRefs.current[i] = el }}
-            position={[0, BLOCK_YS[i], 0]}
-            renderOrder={1}
-          >
-            <planeGeometry args={[BLOCK_W, BLOCK_H]} />
-            <meshBasicMaterial transparent opacity={0} depthWrite={false} toneMapped={false} />
-          </mesh>
+          <group key={log.org} position={[0, BLOCK_YS[i], 0]}>
+            <mesh
+              ref={(el) => { meshRefs.current[i] = el }}
+              renderOrder={1}
+            >
+              <planeGeometry args={[BLOCK_W, BLOCK_H]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} toneMapped={false} />
+            </mesh>
+            <Html center distanceFactor={7.2} position={[0, 0, 0.08]} style={{ pointerEvents: 'none' }}>
+              <div
+                ref={(el) => { panelRefs.current[i] = el }}
+                style={{
+                  width: '780px',
+                  minHeight: '108px',
+                  opacity: 0,
+                  boxSizing: 'border-box',
+                  background: 'rgba(6,7,10,0.84)',
+                  border: '1px solid rgba(230,230,233,0.24)',
+                  borderLeft: `5px solid ${log.accent}`,
+                  padding: '14px 18px 13px',
+                  fontFamily: 'var(--font-mono), "JetBrains Mono", monospace',
+                  boxShadow: `0 0 28px ${log.accent}22`,
+                  backdropFilter: 'blur(2px)',
+                  transition: 'border-color 0.22s ease',
+                }}
+              >
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: '18px',
+                  color: '#7A8790',
+                  fontSize: '13px',
+                  lineHeight: 1.25,
+                  whiteSpace: 'nowrap',
+                }}>
+                  <span>{log.time} :: {log.org}</span>
+                  <span style={{ color: log.accent, fontWeight: 700 }}>{log.status}</span>
+                </div>
+                <div style={{
+                  marginTop: '8px',
+                  color: '#F2F4F5',
+                  fontFamily: 'var(--font-display), system-ui, sans-serif',
+                  fontSize: '28px',
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  letterSpacing: 0,
+                  whiteSpace: 'nowrap',
+                  textShadow: '0 0 16px rgba(255,255,255,0.22)',
+                }}>
+                  {log.role}
+                </div>
+                <div style={{
+                  marginTop: '9px',
+                  color: '#B6C0C6',
+                  fontSize: '14px',
+                  lineHeight: 1.35,
+                  whiteSpace: 'normal',
+                }}>
+                  {log.detail}
+                </div>
+              </div>
+            </Html>
+          </group>
         ))}
 
         {/* CRT scrub head */}
@@ -215,7 +277,7 @@ export function Layer4History() {
           <meshBasicMaterial color="#FFFFFF" transparent opacity={0} depthWrite={false} toneMapped={false} />
         </mesh>
 
-        <Html position={[0, 2.35, 0]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
+        <Html position={[0, 2.16, 0]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
           <div ref={headerRef} style={{
             opacity: 0, color: '#E6E6E9',
             fontFamily: 'var(--font-mono), "JetBrains Mono", monospace',
